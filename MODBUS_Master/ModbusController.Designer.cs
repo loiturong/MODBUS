@@ -1,4 +1,6 @@
-﻿namespace MODBUS_Master;
+﻿using System.Linq.Expressions;
+
+namespace MODBUS_Master;
 
 partial class ModbusController
 {
@@ -37,13 +39,10 @@ partial class ModbusController
         COMPort_Open = new System.Windows.Forms.Button();
         FunctionSelectcb = new System.Windows.Forms.ComboBox();
         Master_grid = new System.Windows.Forms.DataGridView();
-        Field_Name = new System.Windows.Forms.DataGridViewTextBoxColumn();
-        Value = new System.Windows.Forms.DataGridViewTextBoxColumn();
         Slave_grid = new System.Windows.Forms.DataGridView();
-        Field_Name_S = new System.Windows.Forms.DataGridViewTextBoxColumn();
-        Value_S = new System.Windows.Forms.DataGridViewTextBoxColumn();
         Function_gb = new System.Windows.Forms.GroupBox();
         FunctionSend_bt = new System.Windows.Forms.Button();
+        Oper_Status = new System.Windows.Forms.Label();
         COMPort_gb.SuspendLayout();
         ((System.ComponentModel.ISupportInitialize)COMPort_Status).BeginInit();
         ((System.ComponentModel.ISupportInitialize)Master_grid).BeginInit();
@@ -93,6 +92,7 @@ partial class ModbusController
         COMPort_Comselect.Size = new System.Drawing.Size(100, 23);
         COMPort_Comselect.TabIndex = 2;
         COMPort_Comselect.DropDown += COMPort_Comselect_DropDown;
+        COMPort_Comselect.SelectedIndexChanged += _auto_select_baudrate;
         // 
         // COMPort_Close
         // 
@@ -117,9 +117,9 @@ partial class ModbusController
         // FunctionSelectcb
         // 
         FunctionSelectcb.FormattingEnabled = true;
-        FunctionSelectcb.Location = new System.Drawing.Point(13, 27);
+        FunctionSelectcb.Location = new System.Drawing.Point(25, 27);
         FunctionSelectcb.Name = "FunctionSelectcb";
-        FunctionSelectcb.Size = new System.Drawing.Size(235, 23);
+        FunctionSelectcb.Size = new System.Drawing.Size(210, 23);
         FunctionSelectcb.TabIndex = 5;
         FunctionSelectcb.SelectedIndexChanged += FunctionSelectcb_SelectedIndexChanged;
         // 
@@ -127,74 +127,60 @@ partial class ModbusController
         // 
         Master_grid.AutoSizeRowsMode = System.Windows.Forms.DataGridViewAutoSizeRowsMode.AllCells;
         Master_grid.ColumnHeadersHeightSizeMode = System.Windows.Forms.DataGridViewColumnHeadersHeightSizeMode.AutoSize;
-        Master_grid.Columns.AddRange(new System.Windows.Forms.DataGridViewColumn[] { Field_Name, Value });
         Master_grid.Location = new System.Drawing.Point(17, 116);
         Master_grid.Name = "Master_grid";
         Master_grid.RowHeadersBorderStyle = System.Windows.Forms.DataGridViewHeaderBorderStyle.Single;
-        Master_grid.Size = new System.Drawing.Size(266, 332);
+        Master_grid.Size = new System.Drawing.Size(266, 377);
         Master_grid.TabIndex = 1;
-        Master_grid.Text = "dataGridView1";
-        // 
-        // Field_Name
-        // 
-        Field_Name.HeaderText = "Field Name";
-        Field_Name.Name = "Field_Name";
-        Field_Name.ReadOnly = true;
-        // 
-        // Value
-        // 
-        Value.HeaderText = "Master";
-        Value.Name = "Value";
-        Value.ValueType = typeof(string);
+        Master_grid.Text = "Master Grid";
+        Master_grid.CellValueChanged += Master_Grid_CellValueChanged;
         // 
         // Slave_grid
         // 
         Slave_grid.ColumnHeadersHeightSizeMode = System.Windows.Forms.DataGridViewColumnHeadersHeightSizeMode.AutoSize;
-        Slave_grid.Columns.AddRange(new System.Windows.Forms.DataGridViewColumn[] { Field_Name_S, Value_S });
         Slave_grid.Location = new System.Drawing.Point(289, 17);
         Slave_grid.Name = "Slave_grid";
-        Slave_grid.Size = new System.Drawing.Size(259, 303);
+        Slave_grid.Size = new System.Drawing.Size(260, 348);
         Slave_grid.TabIndex = 2;
-        Slave_grid.Text = "dataGridView1";
-        // 
-        // Field_Name_S
-        // 
-        Field_Name_S.HeaderText = "Filed Name";
-        Field_Name_S.Name = "Field_Name_S";
-        // 
-        // Value_S
-        // 
-        Value_S.HeaderText = "Slave";
-        Value_S.Name = "Value_S";
-        Value_S.ValueType = typeof(string);
-        Value_S.ReadOnly = true;
+        Slave_grid.Text = "Slave Grid";
         // 
         // Function_gb
         // 
+        Function_gb.Controls.Add(Oper_Status);
         Function_gb.Controls.Add(FunctionSend_bt);
         Function_gb.Controls.Add(FunctionSelectcb);
-        Function_gb.Location = new System.Drawing.Point(289, 326);
+        Function_gb.Location = new System.Drawing.Point(289, 371);
         Function_gb.Name = "Function_gb";
-        Function_gb.Size = new System.Drawing.Size(259, 122);
+        Function_gb.Size = new System.Drawing.Size(260, 122);
         Function_gb.TabIndex = 3;
         Function_gb.TabStop = false;
         Function_gb.Text = "Function Selector";
         // 
         // FunctionSend_bt
         // 
-        FunctionSend_bt.Location = new System.Drawing.Point(72, 56);
+        FunctionSend_bt.Location = new System.Drawing.Point(25, 56);
         FunctionSend_bt.Name = "FunctionSend_bt";
-        FunctionSend_bt.Size = new System.Drawing.Size(104, 52);
+        FunctionSend_bt.Size = new System.Drawing.Size(100, 40);
         FunctionSend_bt.TabIndex = 6;
         FunctionSend_bt.Text = "Send";
         FunctionSend_bt.UseVisualStyleBackColor = true;
-        FunctionSend_bt.Click += FunctionSend_bt_Click;
+        FunctionSend_bt.Click += Send_bt_Click;
+        // 
+        // Oper_Status
+        // 
+        Oper_Status.Font = new System.Drawing.Font("Segoe UI", 9F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)0));
+        Oper_Status.Location = new System.Drawing.Point(135, 56);
+        Oper_Status.Name = "Oper_Status";
+        Oper_Status.Size = new System.Drawing.Size(100, 40);
+        Oper_Status.TabIndex = 7;
+        Oper_Status.Text = "";
+        Oper_Status.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
         // 
         // ModbusController
         // 
         AutoScaleDimensions = new System.Drawing.SizeF(7F, 15F);
         AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-        ClientSize = new System.Drawing.Size(560, 461);
+        ClientSize = new System.Drawing.Size(557, 509);
         Controls.Add(Function_gb);
         Controls.Add(Slave_grid);
         Controls.Add(Master_grid);
@@ -208,18 +194,13 @@ partial class ModbusController
         ResumeLayout(false);
     }
 
-    private System.Windows.Forms.DataGridViewTextBoxColumn Field_Name_S;
-    private System.Windows.Forms.DataGridViewTextBoxColumn Value_S;
+    private System.Windows.Forms.Label Oper_Status;
 
     private System.Windows.Forms.GroupBox Function_gb;
     private System.Windows.Forms.Button FunctionSend_bt;
 
-    private System.Windows.Forms.DataGridViewTextBoxColumn Value;
-
     private System.Windows.Forms.DataGridView Slave_grid;
     private System.Windows.Forms.ComboBox FunctionSelectcb;
-
-    private System.Windows.Forms.DataGridViewTextBoxColumn Field_Name;
 
     private System.Windows.Forms.DataGridView Master_grid;
     private System.Windows.Forms.PictureBox COMPort_Status;
