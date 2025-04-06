@@ -7,9 +7,9 @@ namespace MODBUS_Master;
 
 public partial class ModbusController : Form
 {
-    private SerialPort _serialPort;
-    private System.Windows.Forms.Timer _modbusReadTimer;
-    private AppOrganizer _dataOrganizer = new AppOrganizer();
+    private readonly SerialPort _serialPort;
+    private readonly System.Windows.Forms.Timer _modbusReadTimer;
+    private readonly AppOrganizer _dataOrganizer = new();
     public ModbusController()
     {
         // Initialize COM Ports
@@ -40,24 +40,25 @@ public partial class ModbusController : Form
         {
             case 03:
                 // Read Holding Register
-                byte[] data = new byte[8]
-                {
-                    _dataOrganizer.MasterTableState[0].Value,       // Slave address
-                    _dataOrganizer.MasterTableState[1].Value,       // Function code
-                    _dataOrganizer.MasterTableState[2].Value,       // start address Hi
-                    _dataOrganizer.MasterTableState[3].Value,       // Start address Lo
-                    _dataOrganizer.MasterTableState[4].Value,       // Number of point Hi
-                    _dataOrganizer.MasterTableState[5].Value,       // Number of point Lo
+                byte[] data = 
+                [
+                    (byte)_dataOrganizer.MasterTableState[0].Value,       // Slave address
+                    (byte)_dataOrganizer.MasterTableState[1].Value,       // Function code
+                    (byte)(_dataOrganizer.MasterTableState[2].Value >> 8),       // start address Hi
+                    (byte)(_dataOrganizer.MasterTableState[2].Value & 0xFF),       // Start address Lo
+                    (byte)(_dataOrganizer.MasterTableState[3].Value >> 8),       // Number of point Hi
+                    (byte)(_dataOrganizer.MasterTableState[3].Value & 0xFF),       // Number of point Lo
                     0x00,                                           // CRC Lo
                     0x00                                            // CRC Hi
-                };
-                if (_dataOrganizer.MasterTableState[6].Value == 1) // if using CRC check
+                ];
+                if (_dataOrganizer.MasterTableState[4].Value == 1) // if using CRC check
                 {
-                    (byte crcLo, byte crcHi) = _get_CRC16(data);
+                    var( crcLo,  crcHi) = _get_CRC16(data);
                     data[6] = crcLo;
                     data[7] = crcHi;
                 }
-            
+                Sender_text.Text = string.Join(" ", data.Select(d => "0x" + d.ToString("X2")));
+                
                 if (_serialPort.IsOpen)
                     _serialPort.Write(data, 0, data.Length);
                 break;
@@ -76,13 +77,28 @@ public partial class ModbusController : Form
         {
             case 03:
                 // Read Holding Register
-                int dataLength = _dataOrganizer.SlaveTableState.Count;
-                byte[] data = new byte[dataLength];
+                var data = new byte[2];
                 if (_serialPort.IsOpen)
-                    _serialPort.Read(data, 0, dataLength);
-                // Update data
-                for (int i = 0; i < dataLength; i++)
-                    _dataOrganizer.SlaveTableState[i].Value = data[i];
+                {
+                    // Update data
+                    _serialPort.Read(data, 0, 2);
+                    _dataOrganizer.SlaveTableState[0].Value = data[0];      // Address echo
+                    _dataOrganizer.SlaveTableState[1].Value = data[1];      // Function code echo
+                    _serialPort.Read(data, 0, 1);
+                    _dataOrganizer.SlaveTableState[2].Value = data[0];      // Byte count
+                    // read data
+                    for (var i = 0; i < _dataOrganizer.SlaveTableState[2].Value / 2; i++)
+                    {                    
+                        _serialPort.Read(data, 0, 2);
+                        _dataOrganizer.SlaveTableState[i + 3].Value = (ushort)(data[0] << 8 | data[1]);
+                    }
+                    // CRC check
+                    _serialPort.Read(data, 0, 2);
+                    _dataOrganizer.SlaveTableState[^1].Value = 
+                        (ushort)(data[1] << 8 | data[0]);      // CRC Hi | CRC Lo
+                }
+                
+                
                 // update grid
                 _update_grid(_dataOrganizer.SlaveTableState, Slave_grid);
                 break;
@@ -114,6 +130,7 @@ public partial class ModbusController : Form
                         Send_data(03);
                         // Read data
                         Read_data(03);
+                        // Set status
                         Oper_Status.Text = "Operation OK";
                         Oper_Status.ForeColor = Color.Green;
                         break;
@@ -134,7 +151,7 @@ public partial class ModbusController : Form
     /// </summary>
     /// <param name="sender">The source of the event.</param>
     /// <param name="e">An instance containing the event data.</param>
-    private void COMPort_Comselect_DropDown(object? sender, EventArgs e)
+    private void COMPort_ComSelect_DropDown(object? sender, EventArgs e)
     {
         // Update COM Ports list
         _get_COM_Ports();
@@ -150,7 +167,7 @@ public partial class ModbusController : Form
         try
         {
             // setup serial port
-            _serialPort.PortName = COMPort_Comselect.Text;
+            _serialPort.PortName = COMPort_ComSelect.Text;
             _serialPort.BaudRate = Convert.ToInt32(COMPort_Baudrate.Text);
             _serialPort.Parity = Parity.None;
             _serialPort.DataBits = 8;
@@ -166,7 +183,7 @@ public partial class ModbusController : Form
             COMPort_Close.Enabled = true;
             // Disable start port process to prevent error
             COMPort_Baudrate.Enabled = false;
-            COMPort_Comselect.Enabled = false;
+            COMPort_ComSelect.Enabled = false;
             COMPort_Open.Enabled = false;
             // turn on LED
             COMPort_Status.BackColor = Color.Green;
@@ -175,8 +192,8 @@ public partial class ModbusController : Form
         }
         catch (Exception ex)
         {
-            Console.WriteLine(ex.Message);
-            throw;
+            Oper_Status.Text = ex.Message;
+            Oper_Status.BackColor = Color.Red;
         }
     }
 
@@ -198,15 +215,15 @@ public partial class ModbusController : Form
             COMPort_Close.Enabled = false;
             // Enable start port process
             COMPort_Baudrate.Enabled = true;
-            COMPort_Comselect.Enabled = true;
+            COMPort_ComSelect.Enabled = true;
             COMPort_Open.Enabled = true;
             // turn on LED
             COMPort_Status.BackColor = Color.Red;
         }
         catch (Exception ex)
         {
-            Console.WriteLine(ex.Message);
-            throw;
+            Oper_Status.Text = ex.Message;
+            Oper_Status.BackColor = Color.Red;
         }
     }
 
@@ -223,12 +240,10 @@ public partial class ModbusController : Form
         {
             case "Read Holding Register (0x03)":
                 _dataOrganizer.MasterTableState.Clear();
-                _dataOrganizer.MasterTableState.AddRange(new AppOrganizer.TableData() { Field = "Address", Value = 0 }, 
+                _dataOrganizer.MasterTableState.AddRange(new AppOrganizer.TableData() { Field = "Address", Value = 0 },
                                                                 new AppOrganizer.TableData() { Field = "Function Code", Value = 03 },
-                                                                new AppOrganizer.TableData() { Field = "Address Data Hi", Value = 0 },
-                                                                new AppOrganizer.TableData() { Field = "Address Data Lo", Value = 0 },
-                                                                new AppOrganizer.TableData() { Field = "Number of Registers Hi", Value = 0 },
-                                                                new AppOrganizer.TableData() { Field = "Number of Registers Lo", Value = 0 },
+                                                                new AppOrganizer.TableData() { Field = "Data Address", Value = 0 },
+                                                                new AppOrganizer.TableData() { Field = "Number of Registers", Value = 0 },
                                                                 new AppOrganizer.TableData() { Field = "CRC", Value = 1 });
                 Master_grid.DataSource = _dataOrganizer.MasterTableState;
                 break;
@@ -243,35 +258,40 @@ public partial class ModbusController : Form
     /// <param name="e">The event data associated with the button click event.</param>
     private void Send_bt_Click(object? sender, EventArgs e)
     {
-        string slectedFunction = FunctionSelectcb.Text;
-        switch (slectedFunction)
+        try
         {
-            case "Read Holding Register (0x03)":
-                _dataOrganizer.SlaveTableState.Clear();
-                _dataOrganizer.SlaveTableState.AddRange(new AppOrganizer.TableData() { Field = "Address", Value = 0 }, 
-                    new AppOrganizer.TableData() { Field = "Function Code", Value = 0 },
-                    new AppOrganizer.TableData() { Field = "Bytes count", Value = 0 });
-                int data = _dataOrganizer.MasterTableState[5].Value; // add number of registers x2
-                int start = _dataOrganizer.MasterTableState[3].Value;
+            string slectedFunction = FunctionSelectcb.Text;
+            switch (slectedFunction)
+            {
+                case "Read Holding Register (0x03)":
+                    _dataOrganizer.SlaveTableState.Clear();
+                    _dataOrganizer.SlaveTableState.AddRange(new AppOrganizer.TableData() { Field = "Address", Value = 0 }, 
+                        new AppOrganizer.TableData() { Field = "Function Code", Value = 0 },
+                        new AppOrganizer.TableData() { Field = "Bytes count", Value = 0 });
+                    int numberData = _dataOrganizer.MasterTableState[3].Value; // add number of registers x2
+                    int start = _dataOrganizer.MasterTableState[2].Value;
 
-                for (int i = 0; i < data * 2; i+=2)
-                {
-                    string dataHi = "40" + (start + i / 2 + 1).ToString().PadLeft(3, '0');
-                    _dataOrganizer.SlaveTableState.Add(new AppOrganizer.TableData() { Field = $"Address Data Hi {dataHi}", Value = 0 });
-                    string dataLo = "40" + (start + i  / 2 + 1).ToString().PadLeft(3, '0');
-                    _dataOrganizer.SlaveTableState.Add(new AppOrganizer.TableData() { Field = $"Address Data Lo {dataLo}", Value = 0 });
-                }
+                    for (int i = 0; i < numberData * 2; i+=2)
+                    {
+                        string data = "40" + (start + i  / 2 + 1).ToString().PadLeft(3, '0');
+                        _dataOrganizer.SlaveTableState.Add(new AppOrganizer.TableData() { Field = $"Data Address {data}", Value = 0 });
+                    }
 
-                _dataOrganizer.SlaveTableState.Add(new AppOrganizer.TableData() { Field = "CRC Lo", Value = 0 });
-                _dataOrganizer.SlaveTableState.Add(new AppOrganizer.TableData() { Field = "CRC Hi", Value = 0 });
-                // update grid
-                Slave_grid.DataSource = null;
-                _update_grid(_dataOrganizer.SlaveTableState, Slave_grid);
-                // start timer
-                _modbusReadTimer.Start();
-                break;
-            default:
-                break;
+                    _dataOrganizer.SlaveTableState.Add(new AppOrganizer.TableData() { Field = "CRC", Value = 0 });
+                    // update grid
+                    Slave_grid.DataSource = null;
+                    _update_grid(_dataOrganizer.SlaveTableState, Slave_grid);
+                    // start timer
+                    _modbusReadTimer.Start();
+                    break;
+                default:
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            Oper_Status.Text = ex.Message;
+            Oper_Status.ForeColor = Color.Red;
         }
     }
     #endregion
@@ -308,9 +328,7 @@ public partial class ModbusController : Form
             gridView.DataSource = data;
             return;
         }
-
         var currentData = (List<AppOrganizer.TableData>)gridView.DataSource;
-
         // Update values and check if Field names match
         for (int i = 0; i < data.Count && i < currentData.Count; i++)
         {
@@ -320,6 +338,8 @@ public partial class ModbusController : Form
                 gridView.InvalidateRow(i);
             }
         }
+        // If using direct grid updates
+        gridView.Refresh();
     }
     private void _auto_select_baudrate(object? sender, EventArgs e)
     {
@@ -328,26 +348,26 @@ public partial class ModbusController : Form
     private void _get_COM_Ports()
     { 
         // Clear existed item
-        COMPort_Comselect.Items.Clear();
+        COMPort_ComSelect.Items.Clear();
         // Get available ports
         string[] ports = SerialPort.GetPortNames();
         if (ports.Length > 0)
         {
             foreach (string port in ports)
             {
-                COMPort_Comselect.Items.Add(port);
+                COMPort_ComSelect.Items.Add(port);
             }
         }
         else
         {
             // Handle case when no ports are available
-            COMPort_Comselect.Items.Add("No ports available");
+            COMPort_ComSelect.Items.Add("No ports available");
         }
 
         // Select first item in list
-        if (COMPort_Comselect.Items.Count <= 1)
+        if (COMPort_ComSelect.Items.Count <= 1)
             return;
-        COMPort_Comselect.SelectedIndex = 0;
+        COMPort_ComSelect.SelectedIndex = 0;
     }
     private void Master_Grid_CellValueChanged(object? sender, DataGridViewCellEventArgs e)
     {
@@ -383,7 +403,7 @@ public class AppOrganizer
     public class TableData
     {
         public string Field { get; set; }
-        public byte Value { get; set; }
+        public UInt16 Value { get; set; }
     }
 
     public AppOrganizer()

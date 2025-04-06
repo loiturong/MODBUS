@@ -41,8 +41,9 @@ partial class ModbusController
         Master_grid = new System.Windows.Forms.DataGridView();
         Slave_grid = new System.Windows.Forms.DataGridView();
         Function_gb = new System.Windows.Forms.GroupBox();
-        FunctionSend_bt = new System.Windows.Forms.Button();
         Oper_Status = new System.Windows.Forms.Label();
+        FunctionSend_bt = new System.Windows.Forms.Button();
+        Sender_text = new System.Windows.Forms.Label();
         COMPort_gb.SuspendLayout();
         ((System.ComponentModel.ISupportInitialize)COMPort_Status).BeginInit();
         ((System.ComponentModel.ISupportInitialize)Master_grid).BeginInit();
@@ -130,7 +131,7 @@ partial class ModbusController
         Master_grid.Location = new System.Drawing.Point(17, 116);
         Master_grid.Name = "Master_grid";
         Master_grid.RowHeadersBorderStyle = System.Windows.Forms.DataGridViewHeaderBorderStyle.Single;
-        Master_grid.Size = new System.Drawing.Size(266, 377);
+        Master_grid.Size = new System.Drawing.Size(266, 334);
         Master_grid.TabIndex = 1;
         Master_grid.Text = "Master Grid";
         Master_grid.CellValueChanged += Master_Grid_CellValueChanged;
@@ -156,6 +157,15 @@ partial class ModbusController
         Function_gb.TabStop = false;
         Function_gb.Text = "Function Selector";
         // 
+        // Oper_Status
+        // 
+        Oper_Status.Font = new System.Drawing.Font("Segoe UI", 9F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)0));
+        Oper_Status.Location = new System.Drawing.Point(135, 56);
+        Oper_Status.Name = "Oper_Status";
+        Oper_Status.Size = new System.Drawing.Size(100, 40);
+        Oper_Status.TabIndex = 7;
+        Oper_Status.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
+        // 
         // FunctionSend_bt
         // 
         FunctionSend_bt.Location = new System.Drawing.Point(25, 56);
@@ -166,21 +176,20 @@ partial class ModbusController
         FunctionSend_bt.UseVisualStyleBackColor = true;
         FunctionSend_bt.Click += Send_bt_Click;
         // 
-        // Oper_Status
+        // Sender_text
         // 
-        Oper_Status.Font = new System.Drawing.Font("Segoe UI", 9F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)0));
-        Oper_Status.Location = new System.Drawing.Point(135, 56);
-        Oper_Status.Name = "Oper_Status";
-        Oper_Status.Size = new System.Drawing.Size(100, 40);
-        Oper_Status.TabIndex = 7;
-        Oper_Status.Text = "";
-        Oper_Status.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
+        Sender_text.Location = new System.Drawing.Point(17, 453);
+        Sender_text.Name = "Sender_text";
+        Sender_text.Size = new System.Drawing.Size(266, 40);
+        Sender_text.TabIndex = 4;
+        Sender_text.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
         // 
         // ModbusController
         // 
         AutoScaleDimensions = new System.Drawing.SizeF(7F, 15F);
         AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
         ClientSize = new System.Drawing.Size(557, 509);
+        Controls.Add(Sender_text);
         Controls.Add(Function_gb);
         Controls.Add(Slave_grid);
         Controls.Add(Master_grid);
@@ -193,6 +202,8 @@ partial class ModbusController
         Function_gb.ResumeLayout(false);
         ResumeLayout(false);
     }
+
+    private System.Windows.Forms.Label Sender_text;
 
     private System.Windows.Forms.Label Oper_Status;
 
@@ -208,7 +219,7 @@ partial class ModbusController
     private System.Windows.Forms.GroupBox COMPort_gb;
     private System.Windows.Forms.Button COMPort_Open;
     private System.Windows.Forms.Button COMPort_Close;
-    private System.Windows.Forms.ComboBox COMPort_Comselect;
+    private System.Windows.Forms.ComboBox COMPort_ComSelect;
     private System.Windows.Forms.ComboBox COMPort_Baudrate;
 
     #endregion
