@@ -34,7 +34,7 @@ partial class ModbusController
         COMPort_gb = new System.Windows.Forms.GroupBox();
         COMPort_Status = new System.Windows.Forms.PictureBox();
         COMPort_Baudrate = new System.Windows.Forms.ComboBox();
-        COMPort_Comselect = new System.Windows.Forms.ComboBox();
+        COMPort_ComSelect = new System.Windows.Forms.ComboBox();
         COMPort_Close = new System.Windows.Forms.Button();
         COMPort_Open = new System.Windows.Forms.Button();
         FunctionSelectcb = new System.Windows.Forms.ComboBox();
@@ -55,7 +55,7 @@ partial class ModbusController
         // 
         COMPort_gb.Controls.Add(COMPort_Status);
         COMPort_gb.Controls.Add(COMPort_Baudrate);
-        COMPort_gb.Controls.Add(COMPort_Comselect);
+        COMPort_gb.Controls.Add(COMPort_ComSelect);
         COMPort_gb.Controls.Add(COMPort_Close);
         COMPort_gb.Controls.Add(COMPort_Open);
         COMPort_gb.Location = new System.Drawing.Point(17, 17);
@@ -86,14 +86,14 @@ partial class ModbusController
         // 
         // COMPort_Comselect
         // 
-        COMPort_Comselect.AllowDrop = true;
-        COMPort_Comselect.FormattingEnabled = true;
-        COMPort_Comselect.Location = new System.Drawing.Point(9, 26);
-        COMPort_Comselect.Name = "COMPort_Comselect";
-        COMPort_Comselect.Size = new System.Drawing.Size(100, 23);
-        COMPort_Comselect.TabIndex = 2;
-        COMPort_Comselect.DropDown += COMPort_Comselect_DropDown;
-        COMPort_Comselect.SelectedIndexChanged += _auto_select_baudrate;
+        COMPort_ComSelect.AllowDrop = true;
+        COMPort_ComSelect.FormattingEnabled = true;
+        COMPort_ComSelect.Location = new System.Drawing.Point(9, 26);
+        COMPort_ComSelect.Name = "COMPort_ComSelect";
+        COMPort_ComSelect.Size = new System.Drawing.Size(100, 23);
+        COMPort_ComSelect.TabIndex = 2;
+        COMPort_ComSelect.DropDown += COMPort_ComSelect_DropDown;
+        COMPort_ComSelect.SelectedIndexChanged += _auto_select_baudrate;
         // 
         // COMPort_Close
         // 
