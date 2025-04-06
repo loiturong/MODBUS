@@ -131,7 +131,8 @@ public partial class ModbusController : Form
                         // Read data
                         Read_data(03);
                         // Set status
-                        Oper_Status.Text = "Operation OK";
+                        const string status = "Operation OK";
+                        Oper_Status.Text = status;
                         Oper_Status.ForeColor = Color.Green;
                         break;
                 }
@@ -188,12 +189,13 @@ public partial class ModbusController : Form
             // turn on LED
             COMPort_Status.BackColor = Color.Green;
             // setup function for MODBUS
+            FunctionSelectcb.Items.Clear();
             FunctionSelectcb.Items.AddRange("Read Holding Register (0x03)");
         }
         catch (Exception ex)
         {
-            Oper_Status.Text = ex.Message;
-            Oper_Status.BackColor = Color.Red;
+            Sender_text.Text = ex.Message;
+            Sender_text.BackColor = Color.Red;
         }
     }
 
@@ -206,6 +208,8 @@ public partial class ModbusController : Form
     {
         try
         {
+            // Stop timer
+            _modbusReadTimer.Stop();
             // Close serial port
             _serialPort.Close();
             // Disable other group
@@ -213,6 +217,12 @@ public partial class ModbusController : Form
             Slave_grid.Enabled = false;
             Function_gb.Enabled = false;
             COMPort_Close.Enabled = false;
+            // CLear text
+            Master_grid.DataSource = null;
+            Slave_grid.DataSource = null;
+            FunctionSelectcb.Text = "";
+            Oper_Status.Text = "";
+            Sender_text.Text = "";
             // Enable start port process
             COMPort_Baudrate.Enabled = true;
             COMPort_ComSelect.Enabled = true;
@@ -222,8 +232,8 @@ public partial class ModbusController : Form
         }
         catch (Exception ex)
         {
-            Oper_Status.Text = ex.Message;
-            Oper_Status.BackColor = Color.Red;
+            Sender_text.Text = ex.Message;
+            Sender_text.BackColor = Color.Red;
         }
     }
 
