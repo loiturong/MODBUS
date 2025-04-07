@@ -36,11 +36,12 @@ public partial class ModbusController : Form
     /// <param name="functionCode">The MODBUS function code specifying the action to perform (e.g., reading holding registers).</param>
     private void Send_data(int functionCode)
     {
+        byte[] data;
         switch (functionCode)
-        {
+        { 
             case 03:
                 // Read Holding Register
-                byte[] data = 
+                data = 
                 [
                     (byte)_dataOrganizer.MasterTableState[0].Value,       // Slave address
                     (byte)_dataOrganizer.MasterTableState[1].Value,       // Function code
@@ -48,6 +49,30 @@ public partial class ModbusController : Form
                     (byte)(_dataOrganizer.MasterTableState[2].Value & 0xFF),       // Start address Lo
                     (byte)(_dataOrganizer.MasterTableState[3].Value >> 8),       // Number of point Hi
                     (byte)(_dataOrganizer.MasterTableState[3].Value & 0xFF),       // Number of point Lo
+                    0x00,                                           // CRC Lo
+                    0x00                                            // CRC Hi
+                ];
+                if (_dataOrganizer.MasterTableState[4].Value == 1) // if using CRC check
+                {
+                    var( crcLo,  crcHi) = _get_CRC16(data);
+                    data[6] = crcLo;
+                    data[7] = crcHi;
+                }
+                Sender_text.Text = string.Join(" ", data.Select(d => "0x" + d.ToString("X2")));
+                
+                if (_serialPort.IsOpen)
+                    _serialPort.Write(data, 0, data.Length);
+                break;
+            case 06:
+                // Preset Single Register
+                data = 
+                [
+                    (byte)_dataOrganizer.MasterTableState[0].Value,       // Slave address
+                    (byte)_dataOrganizer.MasterTableState[1].Value,       // Function code
+                    (byte)(_dataOrganizer.MasterTableState[2].Value >> 8),       // start address Hi
+                    (byte)(_dataOrganizer.MasterTableState[2].Value & 0xFF),       // Start address Lo
+                    (byte)(_dataOrganizer.MasterTableState[3].Value >> 8),       // Preset Value Hi
+                    (byte)(_dataOrganizer.MasterTableState[3].Value & 0xFF),       // Preset Value Lo
                     0x00,                                           // CRC Lo
                     0x00                                            // CRC Hi
                 ];
@@ -73,11 +98,12 @@ public partial class ModbusController : Form
     /// <param name="functionCode">The MODBUS function code specifying the action to perform (e.g., reading holding registers).</param>
     private void Read_data(int functionCode)
     {
+        byte[] data;
         switch (functionCode)
-        {
+        { 
             case 03:
                 // Read Holding Register
-                var data = new byte[2];
+                data = new byte[2];
                 if (_serialPort.IsOpen)
                 {
                     // Update data
@@ -97,8 +123,20 @@ public partial class ModbusController : Form
                     _dataOrganizer.SlaveTableState[^1].Value = 
                         (ushort)(data[1] << 8 | data[0]);      // CRC Hi | CRC Lo
                 }
-                
-                
+                // update grid
+                _update_grid(_dataOrganizer.SlaveTableState, Slave_grid);
+                break;
+            case 06:
+                // Preset Single Register
+                data = new byte[8];
+                if (_serialPort.IsOpen)
+                    _serialPort.Read(data, 0, 8);
+                // update frame and grid
+                _dataOrganizer.SlaveTableState[0].Value = data[0];      // Address echo
+                _dataOrganizer.SlaveTableState[1].Value = data[1];      // Function code echo
+                _dataOrganizer.SlaveTableState[2].Value = (ushort)(data[3] << 8 | data[2]);      // Data Address echo
+                _dataOrganizer.SlaveTableState[3].Value = (ushort)(data[5] << 8 | data[4]);      // Preset value echo
+                _dataOrganizer.SlaveTableState[4].Value = (ushort)(data[7] << 8 | data[6]);      // CRC Value
                 // update grid
                 _update_grid(_dataOrganizer.SlaveTableState, Slave_grid);
                 break;
@@ -119,6 +157,7 @@ public partial class ModbusController : Form
         {
             try
             {
+                const string status = "Operation OK";
                 // clear data
                 _serialPort.DiscardInBuffer();
                 _serialPort.DiscardOutBuffer();
@@ -131,7 +170,15 @@ public partial class ModbusController : Form
                         // Read data
                         Read_data(03);
                         // Set status
-                        const string status = "Operation OK";
+                        Oper_Status.Text = status;
+                        Oper_Status.ForeColor = Color.Green;
+                        break;
+                    case 06:
+                        // Send command: Read Holding Register
+                        Send_data(06);
+                        // Read data
+                        Read_data(06);
+                        // Set status
                         Oper_Status.Text = status;
                         Oper_Status.ForeColor = Color.Green;
                         break;
@@ -190,7 +237,9 @@ public partial class ModbusController : Form
             COMPort_Status.BackColor = Color.Green;
             // setup function for MODBUS
             FunctionSelectcb.Items.Clear();
-            FunctionSelectcb.Items.AddRange("Read Holding Register (0x03)");
+            FunctionSelectcb.Items.AddRange(
+                "Read Holding Register (0x03)",
+                "Preset Single Register (0x06)");
         }
         catch (Exception ex)
         {
@@ -245,11 +294,10 @@ public partial class ModbusController : Form
     private void FunctionSelectcb_SelectedIndexChanged(object? sender, EventArgs e)
     {
         string slectedFunction = FunctionSelectcb.Text;
-
+        _dataOrganizer.MasterTableState.Clear();
         switch (slectedFunction)
         {
             case "Read Holding Register (0x03)":
-                _dataOrganizer.MasterTableState.Clear();
                 _dataOrganizer.MasterTableState.AddRange(new AppOrganizer.TableData() { Field = "Address", Value = 0 },
                                                                 new AppOrganizer.TableData() { Field = "Function Code", Value = 03 },
                                                                 new AppOrganizer.TableData() { Field = "Data Address", Value = 0 },
@@ -257,9 +305,18 @@ public partial class ModbusController : Form
                                                                 new AppOrganizer.TableData() { Field = "CRC", Value = 1 });
                 Master_grid.DataSource = _dataOrganizer.MasterTableState;
                 break;
+            case "Preset Single Register (0x06)":
+                _dataOrganizer.MasterTableState.AddRange(new AppOrganizer.TableData() { Field = "Address", Value = 0 },
+                    new AppOrganizer.TableData() { Field = "Function Code", Value = 06 },
+                    new AppOrganizer.TableData() { Field = "Data Address", Value = 0 },
+                    new AppOrganizer.TableData() { Field = "Preset value", Value = 0 },
+                    new AppOrganizer.TableData() { Field = "CRC", Value = 1 });
+                Master_grid.DataSource = _dataOrganizer.MasterTableState;
+                break;
             default:
                 break;
         }
+        Master_grid.Refresh();
     }
 
     /// Event handler for the Send button click event.
@@ -271,10 +328,10 @@ public partial class ModbusController : Form
         try
         {
             string slectedFunction = FunctionSelectcb.Text;
+            _dataOrganizer.SlaveTableState.Clear();
             switch (slectedFunction)
             {
                 case "Read Holding Register (0x03)":
-                    _dataOrganizer.SlaveTableState.Clear();
                     _dataOrganizer.SlaveTableState.AddRange(new AppOrganizer.TableData() { Field = "Address", Value = 0 }, 
                         new AppOrganizer.TableData() { Field = "Function Code", Value = 0 },
                         new AppOrganizer.TableData() { Field = "Bytes count", Value = 0 });
@@ -294,9 +351,22 @@ public partial class ModbusController : Form
                     // start timer
                     _modbusReadTimer.Start();
                     break;
+                case "Preset Single Register (0x06)":
+                    // construct frame
+                    _dataOrganizer.SlaveTableState.AddRange(new AppOrganizer.TableData() { Field = "Address", Value = 0 },
+                        new AppOrganizer.TableData() { Field = "Function Code", Value = 06 },
+                        new AppOrganizer.TableData() { Field = "Data Address", Value = 0 },
+                        new AppOrganizer.TableData() { Field = "Preset value", Value = 0 },
+                        new AppOrganizer.TableData() { Field = "CRC", Value = 1 });
+                    // update grid
+                    Slave_grid.DataSource = _dataOrganizer.SlaveTableState;
+                    // start timer
+                    _modbusReadTimer.Start();
+                    break;
                 default:
                     break;
             }
+            Slave_grid.Refresh();
         }
         catch (Exception ex)
         {
