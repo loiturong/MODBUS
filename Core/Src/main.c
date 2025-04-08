@@ -117,24 +117,24 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-    // if (holding_register[0x00] == 0x0001) {
-    //     HAL_GPIO_WritePin(GPIOA, GPIO_PIN_7, GPIO_PIN_SET);
-    // }
-    // else {
-    //     HAL_GPIO_WritePin(GPIOA, GPIO_PIN_7, GPIO_PIN_RESET);
-    // }
-    //   if (holding_register[0x01] == 0x0001) {
-    //       HAL_GPIO_WritePin(GPIOE, GPIO_PIN_7, GPIO_PIN_SET);
-    //   }
-    //   else {
-    //       HAL_GPIO_WritePin(GPIOE, GPIO_PIN_7, GPIO_PIN_RESET);
-    //   }
-    //   if (holding_register[0x02] == 0x0001) {
-    //       HAL_GPIO_WritePin(GPIOE, GPIO_PIN_10, GPIO_PIN_SET);
-    //   }
-    //   else {
-    //       HAL_GPIO_WritePin(GPIOE, GPIO_PIN_10, GPIO_PIN_RESET);
-    //   }
+    if (holding_register[0x00] == 0x0001) {
+        HAL_GPIO_WritePin(GPIOA, GPIO_PIN_7, GPIO_PIN_RESET);
+    }
+    else {
+        HAL_GPIO_WritePin(GPIOA, GPIO_PIN_7, GPIO_PIN_SET);
+    }
+      if (holding_register[0x01] == 0x0001) {
+          HAL_GPIO_WritePin(GPIOE, GPIO_PIN_7, GPIO_PIN_RESET);
+      }
+      else {
+          HAL_GPIO_WritePin(GPIOE, GPIO_PIN_7, GPIO_PIN_SET);
+      }
+      if (holding_register[0x02] == 0x0001) {
+          HAL_GPIO_WritePin(GPIOE, GPIO_PIN_10, GPIO_PIN_RESET);
+      }
+      else {
+          HAL_GPIO_WritePin(GPIOE, GPIO_PIN_10, GPIO_PIN_SET);
+      }
   }
   /* USER CODE END 3 */
 }
