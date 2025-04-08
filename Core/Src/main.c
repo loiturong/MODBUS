@@ -22,7 +22,6 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include <stdint.h>
-#include <stddef.h>
 
 /* USER CODE END Includes */
 
@@ -38,7 +37,7 @@ typedef struct {
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 #define Slave_Address           27 //
-#define Oper_Time_Out           5  // 5ms
+#define Oper_Time_Out           50 // 5ms
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -55,7 +54,7 @@ UART_HandleTypeDef huart4;
 
 /* USER CODE BEGIN PV */
 unsigned int holding_register[0xFF];
-unsigned char modbus_frame[8];
+unsigned char modbus_frame[12];
 
 /* USER CODE END PV */
 
@@ -81,7 +80,8 @@ int main(void)
 {
 
   /* USER CODE BEGIN 1 */
-
+  // holding_register[32] = 35000;
+  // holding_register[33] = 64000;
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -106,7 +106,7 @@ int main(void)
   MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
   // Listening to the network
-  HAL_UART_Receive_IT(&huart4, (uint8_t*)modbus_frame, 1);
+  HAL_UART_Receive_IT(&huart4, modbus_frame, 1);
 
   /* USER CODE END 2 */
 
@@ -117,24 +117,24 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-    if (holding_register[0x00] == 0x0001) {
-        HAL_GPIO_WritePin(GPIOA, GPIO_PIN_7, GPIO_PIN_SET);
-    }
-    else {
-        HAL_GPIO_WritePin(GPIOA, GPIO_PIN_7, GPIO_PIN_RESET);
-    }
-      if (holding_register[0x01] == 0x0001) {
-          HAL_GPIO_WritePin(GPIOE, GPIO_PIN_7, GPIO_PIN_SET);
-      }
-      else {
-          HAL_GPIO_WritePin(GPIOE, GPIO_PIN_7, GPIO_PIN_RESET);
-      }
-      if (holding_register[0x02] == 0x0001) {
-          HAL_GPIO_WritePin(GPIOE, GPIO_PIN_10, GPIO_PIN_SET);
-      }
-      else {
-          HAL_GPIO_WritePin(GPIOE, GPIO_PIN_10, GPIO_PIN_RESET);
-      }
+    // if (holding_register[0x00] == 0x0001) {
+    //     HAL_GPIO_WritePin(GPIOA, GPIO_PIN_7, GPIO_PIN_SET);
+    // }
+    // else {
+    //     HAL_GPIO_WritePin(GPIOA, GPIO_PIN_7, GPIO_PIN_RESET);
+    // }
+    //   if (holding_register[0x01] == 0x0001) {
+    //       HAL_GPIO_WritePin(GPIOE, GPIO_PIN_7, GPIO_PIN_SET);
+    //   }
+    //   else {
+    //       HAL_GPIO_WritePin(GPIOE, GPIO_PIN_7, GPIO_PIN_RESET);
+    //   }
+    //   if (holding_register[0x02] == 0x0001) {
+    //       HAL_GPIO_WritePin(GPIOE, GPIO_PIN_10, GPIO_PIN_SET);
+    //   }
+    //   else {
+    //       HAL_GPIO_WritePin(GPIOE, GPIO_PIN_10, GPIO_PIN_RESET);
+    //   }
   }
   /* USER CODE END 3 */
 }
@@ -309,43 +309,40 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 {
     if(huart->Instance == UART4)
     {
-        uint8_t temp_buffer = 0x00;
-        if (modbus_frame[0] != Slave_Address) {      // Master is not talking to me
-            // Keep listening
-            HAL_UART_Receive_IT(&huart4, (uint8_t*)modbus_frame, 1);
-            return;
+        if (modbus_frame[0] != Slave_Address) {
+          HAL_UART_Receive_IT(&huart4, modbus_frame, 1);
+          return;
         }
-        // Master is talking to me
-        HAL_UART_Receive(&huart4, &temp_buffer, 1, Oper_Time_Out);     // read function code
+        uint8_t temp_buffer;
+        HAL_UART_Receive(&huart4, &temp_buffer, 1, Oper_Time_Out);
         modbus_frame[1] = temp_buffer;
-        // process the function code
-        switch (modbus_frame[1]) {
-            case 0x03:      // Read Holding Register
+        switch (modbus_frame[1])
+        {
+            case 0x03:
                 Process_Read_Holding_Register();
                 break;
-            case 0x06:      // Preset Single Register
+            case 0x06:
                 Process_Preset_Single_Register();
                 break;
-            default:        // Not recognize as a valid function code
-                // HAL_UART_Transmit(&huart4, (uint8_t*)"Invalid Function Code", 20, Oper_Time_Out);
+            default:
                 break;
         }
-        HAL_UART_Receive_IT(&huart4, (uint8_t*)modbus_frame, 1);        // restart listening
+        HAL_UART_Receive_IT(&huart4, modbus_frame, 1);
     }
 }
 
 void Process_Read_Holding_Register(void)
 {
     uint8_t temp_buffer[2] = {0x00, 0x00};
-    HAL_UART_Receive(&huart4, (uint8_t*)temp_buffer, 2, Oper_Time_Out);     // read address
+    HAL_UART_Receive(&huart4, temp_buffer, 2, Oper_Time_Out);     // read address
     modbus_frame[2] = temp_buffer[0];       // Data Address Hi
     modbus_frame[3] = temp_buffer[1];       // Data Address Lo
-    HAL_UART_Receive(&huart4, (uint8_t*)temp_buffer, 2, Oper_Time_Out);     // read quantity
+    HAL_UART_Receive(&huart4, temp_buffer, 2, Oper_Time_Out);     // read quantity
     modbus_frame[4] = temp_buffer[0];       // Number of Points Hi
     modbus_frame[5] = temp_buffer[1];       // Number of Points Lo
-    HAL_UART_Receive(&huart4, (uint8_t*)temp_buffer, 2, Oper_Time_Out);     // read CRC
-    modbus_frame[7] = temp_buffer[0];       // CRC Lo
-    modbus_frame[6] = temp_buffer[1];       // CRC Hi
+    HAL_UART_Receive(&huart4, temp_buffer, 2, Oper_Time_Out);     // read CRC
+    modbus_frame[6] = temp_buffer[0];       // CRC Lo
+    modbus_frame[7] = temp_buffer[1];       // CRC Hi
     // init response
     int number_to_send = 5 + (modbus_frame[4] << 8 | modbus_frame[5]) * 2;
     uint8_t response[number_to_send];
@@ -353,40 +350,41 @@ void Process_Read_Holding_Register(void)
     response[1] = 0x03;
     response[2] = number_to_send - 5;
     // Check data
-    crc_result_t crc_result = get_CRC16((uint8_t*)modbus_frame, 6);
-    if (crc_result.low == modbus_frame[6] && crc_result.high == modbus_frame[7])
-        for (int i = 0; i < (modbus_frame[4] << 8 | modbus_frame[5]); i++) {
-            int index = 1 + (modbus_frame[2] << 8 | modbus_frame[3]) + i;
-            response[3 + i] = holding_register[index] >> 8;     // Data Hi
-            response[4 + i] = holding_register[index] & 0xFF;   // Data Lo
-        }
-    crc_result = get_CRC16((uint8_t*)response, number_to_send - 2);
+    crc_result_t crc_result = get_CRC16(modbus_frame, 6);
+    if (crc_result.low != modbus_frame[6] || crc_result.high != modbus_frame[7])
+        return;
+    for (int i = 0; i < (number_to_send - 5) / 2; i++) {
+        int index = (modbus_frame[2] << 8 | modbus_frame[3]) + i;
+        response[3 + i * 2] = holding_register[index] >> 8;     // Data Hi
+        response[4 + i * 2] = holding_register[index] & 0xFF;   // Data Lo
+    }
+    crc_result = get_CRC16(response, number_to_send - 2);
     response[number_to_send - 2] = crc_result.low;
     response[number_to_send - 1] = crc_result.high;
-    HAL_UART_Transmit(&huart4, (uint8_t*)response, number_to_send, Oper_Time_Out);
+    HAL_UART_Transmit(&huart4, response, number_to_send, Oper_Time_Out);
 }
 void Process_Preset_Single_Register(void)
 {
     uint8_t response[8];
-    uint8_t temp_buffer[6];
-    HAL_UART_Receive(&huart4, (uint8_t*)temp_buffer, 6, Oper_Time_Out);    // Read all bytes
+    uint8_t _buffer[6];
+    HAL_UART_Receive(&huart4, _buffer, 6, Oper_Time_Out);    // Read all bytes
     // create echo response for function
     response[0] = modbus_frame[0];
     response[1] = modbus_frame[1];
     for (int i = 0; i < 6; i++) {
-        response[i + 2] = temp_buffer[i];
-        modbus_frame[i + 2] = temp_buffer[i];       // update modbus frame
+        response[i + 2] = _buffer[i];
+        modbus_frame[i + 2] = _buffer[i];       // update modbus frame
     }
-    crc_result_t crc_result = get_CRC16((uint8_t*)modbus_frame, 6);
+    crc_result_t crc_result = get_CRC16(modbus_frame, 6);
     if (crc_result.low != modbus_frame[6] || crc_result.high != modbus_frame[7]) {
         return;
     }
     // Preset value
-    holding_register[modbus_frame[3] << 8 | modbus_frame[2]] = modbus_frame[5] << 8 | modbus_frame[4];
-    crc_result = get_CRC16((uint8_t*)response, 6);
+    holding_register[((modbus_frame[2] << 8) | modbus_frame[3])] = ((modbus_frame[4] << 8) | modbus_frame[5]);
+    crc_result = get_CRC16(response, 6);
     response[6] = crc_result.low;
     response[7] = crc_result.high;
-    HAL_UART_Transmit(&huart4, (uint8_t*)response, 8, Oper_Time_Out);
+    HAL_UART_Transmit(&huart4, response, 8, Oper_Time_Out);
 }
 crc_result_t get_CRC16(const uint8_t* data, size_t length)
 {
