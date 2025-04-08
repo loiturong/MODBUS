@@ -98,56 +98,84 @@ public partial class ModbusController : Form
     /// <param name="functionCode">The MODBUS function code specifying the action to perform (e.g., reading holding registers).</param>
     private void Read_data(int functionCode)
     {
-        byte[] data;
+        byte[] data = new byte[2];
+        // Create a List
+        List<byte> response = new List<byte>();
         switch (functionCode)
         { 
             case 03:
                 // Read Holding Register
-                data = new byte[2];
                 if (_serialPort.IsOpen)
                 {
                     // Update data
                     _serialPort.Read(data, 0, 1);
                     _dataOrganizer.SlaveTableState[0].Value = data[0];      // Address echo
+                    response.Add(data[0]);
                     _serialPort.Read(data, 0, 1);
                     _dataOrganizer.SlaveTableState[1].Value = data[0];      // Function code echo
+                    response.Add(data[0]);
                     _serialPort.Read(data, 0, 1);
                     _dataOrganizer.SlaveTableState[2].Value = data[0];      // Byte count
+                    response.Add(data[0]);
                     // read data
                     for (var i = 0; i < _dataOrganizer.SlaveTableState[2].Value / 2; i++)
                     {                    
                         _serialPort.Read(data, 0, 2);
                         _dataOrganizer.SlaveTableState[i + 3].Value = (ushort)(data[0] << 8 | data[1]);
+                        response.Add(data[0]);
+                        response.Add(data[1]);
                     }
                     // CRC check
                     _serialPort.Read(data, 0, 2);
                     _dataOrganizer.SlaveTableState[^1].Value = 
                         (ushort)(data[1] << 8 | data[0]);      // CRC Hi | CRC Lo
+                    response.Add(data[0]);
+                    response.Add(data[1]);
                 }
                 break;
             case 06:
                 // Preset Single Register
-                data = new byte[8];
                 if (_serialPort.IsOpen)
                 {
                     // Update data
                     _serialPort.Read(data, 0, 1);
                     _dataOrganizer.SlaveTableState[0].Value = data[0];      // Address echo
-                    _serialPort.Read(data, 1, 1);
-                    _dataOrganizer.SlaveTableState[1].Value = data[1];      // Function code echo
-                    _serialPort.Read(data, 2, 2);
-                    _dataOrganizer.SlaveTableState[2].Value = (ushort)(data[2] << 8 | data[3]);      // Data Address echo
-                    _serialPort.Read(data, 4, 2);
-                    _dataOrganizer.SlaveTableState[3].Value = (ushort)(data[4] << 8 | data[5]);      // Preset value echo
-                    _serialPort.Read(data, 6, 2);
-                    _dataOrganizer.SlaveTableState[4].Value = (ushort)(data[7] << 8 | data[6]);      // CRC Value
+                    response.Add(data[0]);
+                    _serialPort.Read(data, 0, 1);
+                    _dataOrganizer.SlaveTableState[1].Value = data[0];      // Function code echo
+                    response.Add(data[0]);
+                    _serialPort.Read(data, 0, 2);
+                    _dataOrganizer.SlaveTableState[2].Value = (ushort)(data[0] << 8 | data[1]);      // Data Address echo
+                    response.Add(data[0]);
+                    response.Add(data[1]);
+                    _serialPort.Read(data, 0, 2);
+                    _dataOrganizer.SlaveTableState[3].Value = (ushort)(data[0] << 8 | data[1]);      // Preset value echo
+                    response.Add(data[0]);
+                    response.Add(data[1]);
+                    _serialPort.Read(data, 0, 2);
+                    _dataOrganizer.SlaveTableState[4].Value = (ushort)(data[1] << 8 | data[1]);      // CRC Value
+                    response.Add(data[0]);
+                    response.Add(data[1]);
                 }
-                // foreach (var d in data)
-                //     Console.Write(" " + d.ToString("X2"));
-                // Console.WriteLine();
                 break;
             default:
                 break;
+        }
+        // check CRC
+        // foreach (var d in response)
+        //     Console.Write(" " + d.ToString("X2"));       // Debug
+        // Console.WriteLine();
+        if (ValidateSlaveResponseCrc(response.ToArray()))
+        {
+            const string status = "Operation OK";
+            Oper_Status.Text = status;
+            Oper_Status.ForeColor = Color.Green;
+        }
+        else
+        {
+            const string status = "CRC Invalid";
+            Oper_Status.Text = status;
+            Oper_Status.ForeColor = Color.Red;
         }
         // update grid
         _update_grid(_dataOrganizer.SlaveTableState, Slave_grid);
@@ -165,7 +193,6 @@ public partial class ModbusController : Form
         {
             try
             {
-                const string status = "Operation OK";
                 // clear data
                 _serialPort.DiscardInBuffer();
                 _serialPort.DiscardOutBuffer();
@@ -185,16 +212,6 @@ public partial class ModbusController : Form
                         Read_data(06);
                         break;
                 }
-                // check CRC
-                //
-                // var( crcLo,  crcHi) = _get_CRC16(_dataOrganizer.SlaveTableState.);
-                //
-                // else
-                // {
-                // Set status
-                Oper_Status.Text = status;
-                Oper_Status.ForeColor = Color.Green;
-                // }
             }
             catch (Exception exception)
             {
@@ -385,6 +402,22 @@ public partial class ModbusController : Form
     #endregion
     
     #region Functionallity
+    private bool ValidateSlaveResponseCrc(byte[] response)
+    {
+        if (response.Length < 2)  // Minimum length check
+            return false;
+        
+        // Get the received CRC from last 2 bytes
+        byte receivedCrcLow = response[response.Length - 2];
+        byte receivedCrcHigh = response[response.Length - 1];
+    
+        // Calculate CRC for the message (excluding CRC bytes)
+        byte[] messageWithoutCrc = response.Take(response.Length - 2).ToArray();
+        var (calculatedCrcLow, calculatedCrcHigh) = _get_CRC16(response.ToArray());
+    
+        // Compare calculated and received CRC
+        return (receivedCrcLow == calculatedCrcLow && receivedCrcHigh == calculatedCrcHigh);
+    }
     private (byte low, byte high) _get_CRC16(byte[] data)
     {
         ushort crc = 0xFFFF;
@@ -483,46 +516,6 @@ public partial class ModbusController : Form
 
 public class AppOrganizer
 {
-    private (byte low, byte high) _get_CRC16(byte[] data)
-    {
-        ushort crc = 0xFFFF;
-    
-        for (int pos = 0; pos < data.Length - 2; pos++)
-        {
-            crc ^= data[pos];
-        
-            for (int i = 8; i != 0; i--)
-            {
-                if ((crc & 0x0001) != 0)
-                {
-                    crc >>= 1;
-                    crc ^= 0xA001;
-                }
-                else
-                {
-                    crc >>= 1;
-                }
-            }
-        }
-    
-        return ((byte)(crc & 0xFF), (byte)(crc >> 8));
-    }
-    private bool ValidateSlaveResponseCrc(byte[] response)
-    {
-        if (response.Length < 2)  // Minimum length check
-            return false;
-        
-        // Get the received CRC from last 2 bytes
-        byte receivedCrcLow = response[response.Length - 2];
-        byte receivedCrcHigh = response[response.Length - 1];
-    
-        // Calculate CRC for the message (excluding CRC bytes)
-        byte[] messageWithoutCrc = response.Take(response.Length - 2).ToArray();
-        var (calculatedCrcLow, calculatedCrcHigh) = _get_CRC16(messageWithoutCrc);
-    
-        // Compare calculated and received CRC
-        return (receivedCrcLow == calculatedCrcLow && receivedCrcHigh == calculatedCrcHigh);
-    }
     // Tables state
     public List<TableData> MasterTableState { get; set; }
     public List<TableData> SlaveTableState { get; set; }
