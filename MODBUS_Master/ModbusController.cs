@@ -88,25 +88,25 @@ public partial class ModbusController : Form
                     _serialPort.Write(data, 0, data.Length);
                 break;
             case 16:
-                List<byte> data8 = new List<byte>();
+                var data8 = new List<byte>();
                 data8.Add((byte)_dataOrganizer.MasterTableState[0].Value);          // Slave address
                 data8.Add((byte)_dataOrganizer.MasterTableState[1].Value);          // Function code (0x10)
                 data8.Add((byte)(_dataOrganizer.MasterTableState[2].Value >> 8));   // Start address Hi
                 data8.Add((byte)(_dataOrganizer.MasterTableState[2].Value & 0xFF)); // Start address Lo
-                data8.Add((byte)(_dataOrganizer.MasterTableState[2].Value >> 8));   // number of register Hi
-                data8.Add((byte)(_dataOrganizer.MasterTableState[2].Value & 0xFF)); // number of register Lo
-                data8.Add((byte)_dataOrganizer.MasterTableState[3].Value);          // Byte count
-                for (var i = 4; i < _dataOrganizer.MasterTableState.Count; i++)
+                data8.Add((byte)(_dataOrganizer.MasterTableState[3].Value >> 8));   // number of register Hi
+                data8.Add((byte)(_dataOrganizer.MasterTableState[3].Value & 0xFF)); // number of register Lo
+                data8.Add((byte)_dataOrganizer.MasterTableState[4].Value);          // Byte count
+                for (var i = 5; i < _dataOrganizer.MasterTableState.Count; i++)
                 {
                     data8.Add((byte)(_dataOrganizer.MasterTableState[i].Value >> 8));   // Data Hi
                     data8.Add((byte)(_dataOrganizer.MasterTableState[i].Value & 0xFF)); // Data Lo
                 }
                 data = data8.ToArray();
-                if (_dataOrganizer.MasterTableState[4].Value == 1) // if using CRC check
+                if (_dataOrganizer.MasterTableState[^1].Value == 1) // if using CRC check
                 {
                     var( crcLo,  crcHi) = _get_CRC16(data);
-                    data[6] = crcLo;
-                    data[7] = crcHi;
+                    data[^2] = crcLo;
+                    data[^1] = crcHi;
                 }
                 Sender_text.Text = string.Join(" ", data.Select(d => "0x" + d.ToString("X2")));
                 
@@ -124,9 +124,9 @@ public partial class ModbusController : Form
     /// <param name="functionCode">The MODBUS function code specifying the action to perform (e.g., reading holding registers).</param>
     private void Read_data(int functionCode)
     {
-        byte[] data = new byte[2];
+        var data = new byte[2];
         // Create a List
-        List<byte> response = new List<byte>();
+        var response = new List<byte>();
         switch (functionCode)
         { 
             case 03:
@@ -201,15 +201,16 @@ public partial class ModbusController : Form
                 response.Add(data[0]);
                 response.Add(data[1]);
                 _serialPort.Read(data, 0, 2);
-                _dataOrganizer.SlaveTableState[4].Value = (ushort)(data[1] << 8 | data[1]);      // CRC Value
+                _dataOrganizer.SlaveTableState[4].Value = (ushort)(data[1] << 8 | data[0]);      // CRC Value
                 response.Add(data[0]);
+                response.Add(data[1]);
                 break;
             default:
                 break;
         }
         // check CRC
         // foreach (var d in response)
-        //     Console.Write(" " + d.ToString("X2"));       // Debug
+        //     Console.Write("--" + d.ToString("X2"));       // Debug
         // Console.WriteLine();
         if (ValidateSlaveResponseCrc(response.ToArray()))
         {
@@ -412,6 +413,7 @@ public partial class ModbusController : Form
             default:
                 break;
         }
+        Master_grid.DataSource = null;
         Master_grid.DataSource = _dataOrganizer.MasterTableState;
         Master_grid.Refresh();
     }
@@ -424,7 +426,7 @@ public partial class ModbusController : Form
     {
         try
         {
-            string slectedFunction = FunctionSelectcb.Text;
+            var slectedFunction = FunctionSelectcb.Text;
             _dataOrganizer.SlaveTableState.Clear();
             // construct frame
             switch (slectedFunction)
@@ -436,9 +438,9 @@ public partial class ModbusController : Form
                     int numberData = _dataOrganizer.MasterTableState[3].Value; // add number of registers x2
                     int start = _dataOrganizer.MasterTableState[2].Value;
 
-                    for (int i = 0; i < numberData * 2; i+=2)
+                    for (var i = 0; i < numberData * 2; i+=2)
                     {
-                        string data = "40" + (start + i  / 2 + 1).ToString().PadLeft(3, '0');
+                        var data = "40" + (start + i  / 2 + 1).ToString().PadLeft(3, '0');
                         _dataOrganizer.SlaveTableState.Add(new AppOrganizer.TableData() { Field = $"Data Address {data}", Value = 0 });
                     }
                     _dataOrganizer.SlaveTableState.Add(new AppOrganizer.TableData() { Field = "CRC", Value = 0 });
@@ -482,11 +484,11 @@ public partial class ModbusController : Form
             return false;
         
         // Get the received CRC from last 2 bytes
-        byte receivedCrcLow = response[^2];
-        byte receivedCrcHigh = response[^1];
+        var receivedCrcLow = response[^2];
+        var receivedCrcHigh = response[^1];
     
         // Calculate CRC for the message (excluding CRC bytes)
-        byte[] messageWithoutCrc = response.Take(response.Length - 2).ToArray();
+        var messageWithoutCrc = response.Take(response.Length - 2).ToArray();
         var (calculatedCrcLow, calculatedCrcHigh) = _get_CRC16(response.ToArray());
     
         // Compare calculated and received CRC
@@ -496,11 +498,11 @@ public partial class ModbusController : Form
     {
         ushort crc = 0xFFFF;
     
-        for (int pos = 0; pos < data.Length - 2; pos++)
+        for (var pos = 0; pos < data.Length - 2; pos++)
         {
             crc ^= data[pos];
         
-            for (int i = 8; i != 0; i--)
+            for (var i = 8; i != 0; i--)
             {
                 if ((crc & 0x0001) != 0)
                 {
@@ -516,7 +518,7 @@ public partial class ModbusController : Form
     
         return ((byte)(crc & 0xFF), (byte)(crc >> 8));
     }
-    private void _update_grid(List<AppOrganizer.TableData> data, DataGridView gridView)
+    private static void _update_grid(List<AppOrganizer.TableData> data, DataGridView gridView)
     {
         if (gridView.DataSource == null)
         {
@@ -525,13 +527,14 @@ public partial class ModbusController : Form
         }
         var currentData = (List<AppOrganizer.TableData>)gridView.DataSource;
         // Update values and check if Field names match
-        for (int i = 0; i < data.Count && i < currentData.Count; i++)
+        for (var i = 0; i < data.Count && i < currentData.Count; i++)
         {
-            if (currentData[i].Value != data[i].Value)
+            if (currentData[i].Value == data[i].Value)
             {
-                currentData[i].Value = data[i].Value;
-                gridView.InvalidateRow(i);
+                continue;
             }
+            currentData[i].Value = data[i].Value;
+            gridView.InvalidateRow(i);
         }
         // If using direct grid updates
         gridView.Refresh();
@@ -548,7 +551,7 @@ public partial class ModbusController : Form
         string[] ports = SerialPort.GetPortNames();
         if (ports.Length > 0)
         {
-            foreach (string port in ports)
+            foreach (var port in ports)
             {
                 COMPort_ComSelect.Items.Add(port);
             }
@@ -590,21 +593,25 @@ public partial class ModbusController : Form
     }
     private void Update_Multiple_Register_Function()
     {
-        if (_dataOrganizer.MasterTableState[1].Value == 0x10)
+        if (_dataOrganizer.MasterTableState[1].Value != 0x10)
+            return;
+        if (_dataOrganizer.NumberRegisters == _dataOrganizer.MasterTableState[3].Value)
+            return;
+        _dataOrganizer.NumberRegisters = _dataOrganizer.MasterTableState[3].Value;
+        _dataOrganizer.MasterTableState[4].Value = (ushort)(_dataOrganizer.MasterTableState[3].Value * 2);
+        var tempData = _dataOrganizer.MasterTableState[^1];
+        var length = _dataOrganizer.MasterTableState.Count;
+        for (var index = length - 1; index >= 5; index--)
         {
-            _dataOrganizer.MasterTableState[4].Value = (ushort)(_dataOrganizer.MasterTableState[3].Value * 2);
-            var tempData = _dataOrganizer.MasterTableState[^1];
-            for (int index = 5; index < _dataOrganizer.MasterTableState.Count; index++)
-            {
-                _dataOrganizer.MasterTableState.RemoveAt(index);
-            }
-            for (int index = 5; index < _dataOrganizer.MasterTableState[3].Value; index++)
-            {
-                string fieldName = "Data 40" + _dataOrganizer.MasterTableState[2].Value.ToString().PadLeft(3, '0');
-                _dataOrganizer.MasterTableState.Add(new AppOrganizer.TableData() { Field = fieldName, Value = 0 });
-            }
-            _dataOrganizer.MasterTableState.Add(tempData);
+            _dataOrganizer.MasterTableState.RemoveAt(index);
         }
+        for (var index = 0; index < _dataOrganizer.MasterTableState[3].Value; index++)
+        {
+            var fieldName = "Data 40" + (_dataOrganizer.MasterTableState[2].Value + index).ToString().PadLeft(3, '0');
+            _dataOrganizer.MasterTableState.Add(new AppOrganizer.TableData() { Field = fieldName, Value = 0 });
+        }
+        _dataOrganizer.MasterTableState.Add(tempData);
+        Master_grid.DataSource = null;
     }
     #endregion
 }
@@ -614,7 +621,9 @@ public class AppOrganizer
     // Tables state
     public List<TableData> MasterTableState { get; set; }
     public List<TableData> SlaveTableState { get; set; }
-
+    
+    // state
+    public ushort NumberRegisters;
     // Helper class for table data
     public class TableData
     {
@@ -627,6 +636,7 @@ public class AppOrganizer
         // Initialize collections
         MasterTableState = new List<TableData>();
         SlaveTableState = new List<TableData>();
-        // Inittalize CRC check
+        // Initialize Number of Register for Update Multiple Register function
+        NumberRegisters = 0;
     }
 }
