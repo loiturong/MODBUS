@@ -45,6 +45,7 @@ typedef struct {
 crc_result_t get_CRC16(const uint8_t* data, size_t length);
 void Process_Read_Holding_Register(void);
 void Process_Preset_Single_Register(void);
+void Process_Preset_Multiple_Register(void);
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
@@ -54,7 +55,7 @@ UART_HandleTypeDef huart4;
 
 /* USER CODE BEGIN PV */
 unsigned int holding_register[0xFF];
-unsigned char modbus_frame[12];
+unsigned char modbus_frame[0xFF];
 
 /* USER CODE END PV */
 
@@ -309,12 +310,13 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 {
     if(huart->Instance == UART4)
     {
-        if (modbus_frame[0] != Slave_Address) {
+        if (modbus_frame[0] != Slave_Address) {                 // Master is not talking to me
           HAL_UART_Receive_IT(&huart4, modbus_frame, 1);
           return;
         }
+        // Master is telling something
         uint8_t temp_buffer;
-        HAL_UART_Receive(&huart4, &temp_buffer, 1, Oper_Time_Out);
+        HAL_UART_Receive(&huart4, &temp_buffer, 1, Oper_Time_Out);      // receive function code
         modbus_frame[1] = temp_buffer;
         switch (modbus_frame[1])
         {
@@ -323,6 +325,9 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
                 break;
             case 0x06:
                 Process_Preset_Single_Register();
+                break;
+            case 0x10:
+                Process_Preset_Multiple_Register();
                 break;
             default:
                 break;
@@ -333,16 +338,16 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 
 void Process_Read_Holding_Register(void)
 {
-    uint8_t temp_buffer[2] = {0x00, 0x00};
-    HAL_UART_Receive(&huart4, temp_buffer, 2, Oper_Time_Out);     // read address
-    modbus_frame[2] = temp_buffer[0];       // Data Address Hi
-    modbus_frame[3] = temp_buffer[1];       // Data Address Lo
-    HAL_UART_Receive(&huart4, temp_buffer, 2, Oper_Time_Out);     // read quantity
-    modbus_frame[4] = temp_buffer[0];       // Number of Points Hi
-    modbus_frame[5] = temp_buffer[1];       // Number of Points Lo
-    HAL_UART_Receive(&huart4, temp_buffer, 2, Oper_Time_Out);     // read CRC
-    modbus_frame[6] = temp_buffer[0];       // CRC Lo
-    modbus_frame[7] = temp_buffer[1];       // CRC Hi
+    uint8_t _buffer[2] = {0x00, 0x00};
+    HAL_UART_Receive(&huart4, _buffer, 2, Oper_Time_Out);     // read address
+    modbus_frame[2] = _buffer[0];       // Data Address Hi
+    modbus_frame[3] = _buffer[1];       // Data Address Lo
+    HAL_UART_Receive(&huart4, _buffer, 2, Oper_Time_Out);     // read quantity
+    modbus_frame[4] = _buffer[0];       // Number of Points Hi
+    modbus_frame[5] = _buffer[1];       // Number of Points Lo
+    HAL_UART_Receive(&huart4, _buffer, 2, Oper_Time_Out);     // read CRC
+    modbus_frame[6] = _buffer[0];       // CRC Lo
+    modbus_frame[7] = _buffer[1];       // CRC Hi
     // init response
     int number_to_send = 5 + (modbus_frame[4] << 8 | modbus_frame[5]) * 2;
     uint8_t response[number_to_send];
@@ -381,6 +386,56 @@ void Process_Preset_Single_Register(void)
     }
     // Preset value
     holding_register[((modbus_frame[2] << 8) | modbus_frame[3])] = ((modbus_frame[4] << 8) | modbus_frame[5]);
+    crc_result = get_CRC16(response, 6);
+    response[6] = crc_result.low;
+    response[7] = crc_result.high;
+    HAL_UART_Transmit(&huart4, response, 8, Oper_Time_Out);
+}
+void Process_Preset_Multiple_Register(void)
+{
+    uint8_t size = 2;
+    uint8_t response[8];
+    uint8_t _buffer[2];
+    // Read starting address
+    HAL_UART_Receive(&huart4, _buffer, 2, Oper_Time_Out);
+    uint16_t start_address = (_buffer[0] << 8) | _buffer[1];
+    modbus_frame[2] = _buffer[0];
+    modbus_frame[3] = _buffer[1];
+    size += 2;
+    // Read Number of preset Register
+    HAL_UART_Receive(&huart4, _buffer, 2, Oper_Time_Out);
+    modbus_frame[4] = _buffer[0];
+    modbus_frame[5] = _buffer[1];
+    size += 2;
+    // Read byte count
+    HAL_UART_Receive(&huart4, _buffer, 1, Oper_Time_Out);       // pass this byte
+    uint16_t byte_count = _buffer[0];
+    modbus_frame[6] = _buffer[0];
+    size += 1;
+    for (int i = 0; i < byte_count; i++)
+    {
+        HAL_UART_Receive(&huart4, _buffer, 1, Oper_Time_Out);   // Data
+        modbus_frame[7 + i] = _buffer[0];
+        size++;
+    }
+    // read CRC
+    HAL_UART_Receive(&huart4, _buffer, 2, Oper_Time_Out);
+    modbus_frame[size + 1] = _buffer[0];
+    modbus_frame[size + 2] = _buffer[1];
+    crc_result_t crc_result = get_CRC16(modbus_frame, size);
+    if (crc_result.low != modbus_frame[size + 1] || crc_result.high != modbus_frame[size + 2]) {
+        return;
+    }
+    for (int i = 7; i < size; i+=2) {
+        int index = (modbus_frame[2] << 8 | modbus_frame[3]) + ((i - 7) / 2);
+        holding_register[index] = (modbus_frame[i] << 8 | modbus_frame[i + 1]);
+    }
+    response[0] = modbus_frame[0];
+    response[1] = modbus_frame[1];
+    response[2] = modbus_frame[2];
+    response[3] = modbus_frame[3];
+    response[4] = modbus_frame[4];
+    response[5] = modbus_frame[5];
     crc_result = get_CRC16(response, 6);
     response[6] = crc_result.low;
     response[7] = crc_result.high;
